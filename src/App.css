@@ -1,9 +1,15 @@
 .App {
   text-align: center;
 }
-.container{
+.container {
   display: flex;
   align-items: center;
   justify-content: space-between;
-
+  padding: 2rem;
+}
+.character-list {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
 }

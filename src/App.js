@@ -1,82 +1,94 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import './App.css';
 import axios from 'axios';
 
 function App() {
-  const [data, setData] = useState([]);
+
+  const [allData, setAllData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(20);
-  const [dropdownStatus, setStatus] = useState('Select Status');
-  const [dropdownData, setDropdown] = useState([]);
+  const [page, setPage] = useState(1);
+  const [dropdownStatus, setDropdownStatus] = useState('Select Status');
+  const [dropdownOptions, setDropdownOptions] = useState([]);
+
+  const maxPages = 2;
 
   useEffect(() => {
-    const apiUrl = `https://rickandmortyapi.com/api/character?page=${page}`;
-    const getData = async () => {
-      try {
-        const response = await axios.get(apiUrl);
-        const newData = response.data.results;
-        setData((prevData) => [...prevData, ...newData]);
-        const uniqueStatuses = Array.from(
-          new Set([...dropdownData, ...newData.map((item) => item.status)])
-        );
-        setDropdown(uniqueStatuses);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-    getData();
-  }, [page,dropdownStatus, setStatus]);
-
-  const handleScroll = () => {
-    if (
-      document.body.scrollHeight - 300 <
-      window.scrollY + window.innerHeight
-    ) {
+    const fetchData = async () => {
       setLoading(true);
-    }
-  };
-
-  function debounce(func, delay) {
-    let timeoutId;
-    return function (...args) {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      try {
+        const response = await axios.get(`https://rickandmortyapi.com/api/character?page=${page}`);
+        const newCharacters = response.data.results;
+        setAllData((prevData) => [...prevData, ...newCharacters]);
+        setFilteredData((prevData) => [...prevData, ...newCharacters]);
+               
+        // Extract unique statuses and update dropdown options
+        const newStatuses = Array.from(new Set(newCharacters.map((char) => char.status)));
+        setDropdownOptions((prevOptions) => Array.from(new Set([...prevOptions, ...newStatuses])));
+      } catch (error) {
+        console.error('Error fetching characters:', error);
+      } finally {
+        setLoading(false);
       }
-      timeoutId = setTimeout(() => {
-        func(...args);
-      }, delay);
     };
-  }
+    if (page <= maxPages) {
+      fetchData();
+    }
+  }, [page]);
 
-  window.addEventListener('scroll', debounce(handleScroll, 500));
+  // Handle infinite scroll
+  const handleScroll = useCallback(() => {
+    if (
+      window.innerHeight + document.documentElement.scrollTop >=
+      document.documentElement.offsetHeight - 200
+    ) {
+      if (!loading && page < maxPages) {
+        setPage((prevPage) => prevPage + 1);
+      }
+    }
+  }, [loading, page]);
+
+  const debounce = (func, delay) => {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => func(...args), delay);
+    };
+  };
 
   useEffect(() => {
-    if (loading) {
-      setPage((prevPage) => prevPage + 1);
-    }
-  }, [loading]);
+    const debouncedScroll = debounce(handleScroll, 300);
+    window.addEventListener('scroll', debouncedScroll);
+    return () => window.removeEventListener('scroll', debouncedScroll);
+  }, [handleScroll]);
 
-  const handleChange = (e) => {
-    setStatus(e.target.value);
+  useEffect(() => {
+    const getFilteredData =
+      dropdownStatus === 'Select Status'
+        ? allData
+        : allData.filter((char) => char.status === dropdownStatus);
+    setFilteredData([...getFilteredData]);
+  }, [dropdownStatus, allData]);
+
+  const handleDropdownChange = (e) => {
+    setDropdownStatus(e.target.value);
   };
-
-  const filteredData =
-    dropdownStatus === 'Select Status'
-      ? data
-      : data.filter((character) => character.status === dropdownStatus);
 
   return (
     <div className="App">
-      <div className="container">
+      <div className='container'>
         <h1>Character Explorer</h1>
         <div>
-          <h3>Filter By Status</h3>
-          <select value={dropdownStatus} onChange={handleChange}>
+          <label htmlFor="statusFilter">Filter by Status: </label>
+          <select
+            id="statusFilter"
+            value={dropdownStatus}
+            onChange={handleDropdownChange}
+          >
             <option value="Select Status" disabled>
               Select Status
             </option>
-            {dropdownData.map((status, index) => (
+            {dropdownOptions.map((status, index) => (
               <option key={index} value={status}>
                 {status}
               </option>
@@ -84,18 +96,22 @@ function App() {
           </select>
         </div>
       </div>
-      {filteredData.map((character) => (
-        <div key={character.id}>
-          <img src={character.image} alt="character" />
-          <p>Name: {character.name}</p>
-          <p>Status: {character.status}</p>
-        </div>
-      ))}
-      <h2>{loading && 'Loading more characters...'}</h2>
+
+      <div className="character-list">
+        {filteredData.length > 0 && (
+          filteredData.map((character, index) => (
+            <div key={index}>
+              <img src={character.image} alt={character.name} />
+              <h3>{character.name}</h3>
+              <p>Status: {character.status}</p>
+            </div>
+          ))
+        )}
+      </div>
+      {loading && <p>Loading more characters...</p>}
     </div>
   );
 }
 
 export default App;
-
 
